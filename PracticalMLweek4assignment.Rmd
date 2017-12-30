@@ -1,0 +1,98 @@
+---
+title: "MachineLearningPredictionAssignment"
+author: "KCS"
+date: "December 30, 2017"
+output: html_document
+---
+
+Background:
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+Datasets downloaded from here:
+Training:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+Testing:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+
+Load datafiles and packages
+```{r echo=TRUE, results='hide'}
+library(caret)
+library(randomForest)
+library(e1071)
+library(ggplot2)
+library(dplyr)
+
+pml.testing <- read.csv("C:/Users/b/Downloads/pml-testing.csv")
+pml.training <- read.csv("C:/Users/b/Downloads/pml-training.csv")
+
+##check str for missing values and replace values with NA
+str(pml.training)
+is.na(pml.testing)<-pml.testing ==c("NA", "#DIV/0!","")
+is.na(pml.training)<-pml.training ==c("NA", "#DIV/0!","")
+
+testing<-pml.testing
+training<-pml.training
+```
+
+Check for missing values, keep columns with no NA or missing values and remove columns not related to activity as predictors
+```{r echo=TRUE, results= 'hide'}
+dim(training)
+dim(testing)
+sum(is.na(training))
+sum(is.na(testing))
+subtrain<-training[,colSums(is.na(training))==0]
+subtest<-testing[,colSums(is.na(testing))==0]
+subtrain<-subtrain[,-1] 
+subtrain[,-2:-4]
+subtest<-subtest[,-1] 
+subtest[,-2:-4]
+subtrain<-subtrain
+subtrain<-subtrain[,sapply(subtrain, is.numeric)]
+subtrain$classe<-training$classe
+subtest<-subtest[,sapply(subtest, is.numeric)]
+```
+
+Split Training data into Train and Test set
+```{r, echo=TRUE, results='hide'}
+set.seed(2017)
+inTrain<-createDataPartition(subtrain$classe, p=3/4, list = F)
+traindat<-subtrain[inTrain,]
+testdat<-subtrain[-inTrain,]
+```
+ 
+Show a plot with a predictor and users
+```{r, echo=TRUE}
+qp<- qplot(total_accel_arm,classe, color= user_name, data=training)
+##qp+geom_smooth(method = 'lm',formula = y~x)
+qp
+```
+
+Plot some predictors to show relationship with classe
+```{r echo=TRUE}
+featurePlot(x=traindat[,c("total_accel_belt", "total_accel_arm", "total_accel_dumbbell")],
+            y=traindat$classe,
+            plot="pairs")
+```
+
+Prediction Model of Data using Random Forest
+```{r echo=TRUE}
+traindatctrl<-trainControl(method = "cv", number=5)
+modelfit<-train(classe~., data=traindat,
+                method="rf", preProcess= c("center", "scale"),
+                trControl=traindatctrl, ntree=500)
+print(modelfit)
+```
+
+Using confusion matrix on test dataset, check for accuracy and out-of-sample error rate
+```{r echo=TRUE}
+predtest<-predict(modelfit,testdat)
+confusionMatrix(testdat$classe, predtest)
+```
+
+Lastly, check predictions for classe using original testing data
+```{r echo=TRUE}
+predict(modelfit, testing)
+```
+Answer Course Project Prediction Quiz
